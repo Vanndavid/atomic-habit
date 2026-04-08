@@ -1,0 +1,204 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users/{userId}
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - identityStatement: string (optional)
+    //   - createdAt: string (required, immutable)
+    //
+    // Collection: users/{userId}/habits/{habitId}
+    // Fields:
+    //   - name: string (required)
+    //   - type: string (required, 'good' or 'bad')
+    //   - cue: string (optional)
+    //   - craving: string (optional)
+    //   - response: string (optional)
+    //   - reward: string (optional)
+    //   - implementationIntention: string (optional)
+    //   - habitStacking: string (optional)
+    //   - createdAt: string (required, immutable)
+    //
+    // Collection: users/{userId}/scorecards/{scorecardId}
+    // Fields:
+    //   - name: string (required)
+    //   - rating: string (required, '+', '-', '=')
+    //   - createdAt: string (required, immutable)
+    //
+    // Collection: users/{userId}/reflections/{reflectionId}
+    // Fields:
+    //   - promptId: string (required)
+    //   - content: string (required)
+    //   - updatedAt: string (required)
+    //
+    // Collection: users/{userId}/dailyPlans/{planId}
+    // Fields:
+    //   - date: string (required)
+    //   - focus: string (required)
+    //   - tasks: list (required)
+    //   - skillTask: string (required)
+    //   - jobTask: string (required)
+    //   - reflectionPrompt: string (required)
+    //   - reflectionAnswer: string (optional)
+    //   - completed: boolean (required)
+    //   - notes: string (optional)
+    //   - createdAt: string (required, immutable)
+    //
+    // Collection: users/{userId}/completions/{completionId}
+    // Fields:
+    //   - habitId: string (required)
+    //   - date: string (required)
+    //   - createdAt: string (required, immutable)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    
+    function createdAtNotModified() {
+      return !('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidString(field, maxLen) {
+      return request.resource.data[field] is string && request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, maxLen) {
+      return !(field in request.resource.data) || (request.resource.data[field] is string && request.resource.data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser() {
+      return hasRequiredFields(['uid', 'email', 'createdAt']) &&
+             isValidString('uid', 128) &&
+             isValidString('email', 256) &&
+             isValidString('createdAt', 50) &&
+             isValidOptionalString('displayName', 100) &&
+             isValidOptionalString('identityStatement', 1000);
+    }
+
+    function isValidHabit() {
+      return hasRequiredFields(['name', 'type', 'createdAt']) &&
+             isValidString('name', 200) &&
+             request.resource.data.type in ['good', 'bad'] &&
+             isValidString('createdAt', 50) &&
+             isValidOptionalString('cue', 1000) &&
+             isValidOptionalString('craving', 1000) &&
+             isValidOptionalString('response', 1000) &&
+             isValidOptionalString('reward', 1000) &&
+             isValidOptionalString('implementationIntention', 1000) &&
+             isValidOptionalString('habitStacking', 1000);
+    }
+
+    function isValidScorecardItem() {
+      return hasRequiredFields(['name', 'rating', 'createdAt']) &&
+             isValidString('name', 200) &&
+             request.resource.data.rating in ['+', '-', '='] &&
+             isValidString('createdAt', 50);
+    }
+
+    function isValidReflection() {
+      return hasRequiredFields(['promptId', 'content', 'updatedAt']) &&
+             isValidString('promptId', 100) &&
+             isValidString('content', 5000) && // Allow up to 5000 chars for journal entries
+             isValidString('updatedAt', 50);
+    }
+
+    function isValidDailyPlan() {
+      return hasRequiredFields(['date', 'focus', 'tasks', 'skillTask', 'jobTask', 'reflectionPrompt', 'completed', 'createdAt']) &&
+             isValidString('date', 20) &&
+             isValidString('focus', 500) &&
+             request.resource.data.tasks is list && request.resource.data.tasks.size() == 3 &&
+             isValidString('skillTask', 500) &&
+             isValidString('jobTask', 500) &&
+             isValidString('reflectionPrompt', 500) &&
+             request.resource.data.completed is bool &&
+             isValidString('createdAt', 50) &&
+             isValidOptionalString('reflectionAnswer', 2000) &&
+             isValidOptionalString('notes', 1000);
+    }
+
+    function isValidCompletion() {
+      return hasRequiredFields(['habitId', 'date', 'createdAt']) &&
+             isValidString('habitId', 100) &&
+             isValidString('date', 20) &&
+             isValidString('createdAt', 50);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser() && uidUnchanged();
+      allow update: if isOwner(userId) && isValidUser() && uidNotModified() && createdAtNotModified();
+      
+      match /habits/{habitId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidHabit();
+        allow update: if isOwner(userId) && isValidHabit() && createdAtNotModified();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /scorecards/{scorecardId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidScorecardItem();
+        allow update: if isOwner(userId) && isValidScorecardItem() && createdAtNotModified();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /reflections/{reflectionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidReflection();
+        allow update: if isOwner(userId) && isValidReflection();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /dailyPlans/{planId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDailyPlan();
+        allow update: if isOwner(userId) && isValidDailyPlan() && createdAtNotModified();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /completions/{completionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidCompletion();
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
