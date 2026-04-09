@@ -98,10 +98,17 @@ Context from yesterday's plan:
 Use this context to build a progressive plan for today. If they struggled with something, reinforce it. If they finished something, move to the next step.`;
       }
 
-      const prompt = `My goal: Get a software engineering job within the next 4–8 weeks.
+      const prompt = `My profile:
+- Software Engineer with 3 years of experience.
+- Recent Master's degree graduate.
+- Currently in Australia on a 485 temporary resident visa (expires Feb 2028).
+- Job hunting for 4 months without success.
+- Goal: Get a full-time software engineering job with a good salary in Victoria, Australia within the next 4-8 weeks to secure a PR invite.
+
 Generate a simple, structured daily plan for today.${contextPrompt}
 Rules:
 - Keep everything simple and actionable
+- Tailor the job application task to the Australian/Victorian market, PR requirements, and mid-level roles
 - No long explanations
 - No motivation or emotional language
 - Tasks must be completable within a few hours total
