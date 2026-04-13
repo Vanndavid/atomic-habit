@@ -33,8 +33,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
         
+      # FIX 2 & 3: Add base path and inject Gemini API Key
       - name: Build project
-        run: npm run build
+        # IMPORTANT: Replace '/YOUR-REPO-NAME/' with your actual GitHub repository name!
+        # Example: if your repo is github.com/johndoe/habits, use --base=/habits/
+        run: npm run build -- --base=/YOUR-REPO-NAME/
+        env:
+          # You must add this key in your GitHub Repo -> Settings -> Secrets and variables -> Actions
+          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          
+      # FIX 1: Copy index.html to 404.html to fix React Router refreshes
+      - name: Fix React Router 404s
+        run: cp dist/index.html dist/404.html
         
       - name: Setup Pages
         uses: actions/configure-pages@v4
