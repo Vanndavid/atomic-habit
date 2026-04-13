@@ -37,7 +37,7 @@ jobs:
       - name: Build project
         # IMPORTANT: Replace '/YOUR-REPO-NAME/' with your actual GitHub repository name!
         # Example: if your repo is github.com/johndoe/habits, use --base=/habits/
-        run: npm run build -- --base=/YOUR-REPO-NAME/
+        run: npm run build -- --base=/atomic-habit/
         env:
           # You must add this key in your GitHub Repo -> Settings -> Secrets and variables -> Actions
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
