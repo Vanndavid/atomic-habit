@@ -40,7 +40,7 @@ jobs:
         run: npm run build
         env:
           # You must add this key in your GitHub Repo -> Settings -> Secrets and variables -> Actions
-          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           
       # FIX 1: Copy index.html to 404.html to fix React Router refreshes
       - name: Fix React Router 404s
