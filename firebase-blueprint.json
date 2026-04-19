@@ -80,6 +80,20 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["habitId", "date", "createdAt"]
+    },
+    "JobApplication": {
+      "title": "JobApplication",
+      "description": "A tracked job application.",
+      "type": "object",
+      "properties": {
+        "company": { "type": "string" },
+        "role": { "type": "string" },
+        "location": { "type": "string" },
+        "status": { "type": "string", "enum": ["Bookmarked", "Applied", "Interviewing", "Offer", "Rejected"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["company", "role", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -106,6 +120,10 @@
     "/users/{userId}/completions/{completionId}": {
       "schema": { "$ref": "#/entities/Completion" },
       "description": "User's habit completions."
+    },
+    "/users/{userId}/jobs/{jobId}": {
+      "schema": { "$ref": "#/entities/JobApplication" },
+      "description": "User's job applications."
     }
   }
 }

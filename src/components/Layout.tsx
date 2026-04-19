@@ -12,13 +12,15 @@ import {
   BookOpen,
   CalendarDays,
   Briefcase,
-  ListChecks
+  ListChecks,
+  Target
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Job Hunt Planner', href: '/job-hunt', icon: Briefcase },
+  { name: 'Job Tracker', href: '/job-tracker', icon: Target },
   { name: 'Fundamentals', href: '/identity', icon: User },
   { name: 'Habits Scorecard', href: '/scorecard', icon: ListChecks },
   { name: '1st Law: Obvious', href: '/law1', icon: Eye },

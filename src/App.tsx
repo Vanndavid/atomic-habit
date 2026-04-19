@@ -17,6 +17,7 @@ import Law3 from './pages/Law3';
 import Law4 from './pages/Law4';
 import Tracker from './pages/Tracker';
 import JobHuntPlanner from './pages/JobHuntPlanner';
+import JobTracker from './pages/JobTracker';
 import Scorecard from './pages/Scorecard';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="law4" element={<Law4 />} />
               <Route path="tracker" element={<Tracker />} />
               <Route path="job-hunt" element={<JobHuntPlanner />} />
+              <Route path="job-tracker" element={<JobTracker />} />
               <Route path="scorecard" element={<Scorecard />} />
             </Route>
           </Routes>

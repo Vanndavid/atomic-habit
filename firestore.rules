@@ -58,6 +58,15 @@ service cloud.firestore {
     //   - date: string (required)
     //   - createdAt: string (required, immutable)
     //
+    // Collection: users/{userId}/jobs/{jobId}
+    // Fields:
+    //   - company: string (required)
+    //   - role: string (required)
+    //   - location: string (optional)
+    //   - status: string (required, 'Bookmarked', 'Applied', 'Interviewing', 'Offer', 'Rejected')
+    //   - notes: string (optional)
+    //   - createdAt: string (required, immutable)
+    //
     // ===============================================================
 
     // ===============================================================
@@ -157,6 +166,16 @@ service cloud.firestore {
              isValidString('createdAt', 50);
     }
 
+    function isValidJob() {
+      return hasRequiredFields(['company', 'role', 'status', 'createdAt']) &&
+             isValidString('company', 200) &&
+             isValidString('role', 200) &&
+             request.resource.data.status in ['Bookmarked', 'Applied', 'Interviewing', 'Offer', 'Rejected'] &&
+             isValidString('createdAt', 50) &&
+             isValidOptionalString('location', 200) &&
+             isValidOptionalString('notes', 1000);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -197,6 +216,13 @@ service cloud.firestore {
       match /completions/{completionId} {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidCompletion();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /jobs/{jobId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidJob();
+        allow update: if isOwner(userId) && isValidJob() && createdAtNotModified();
         allow delete: if isOwner(userId);
       }
     }
