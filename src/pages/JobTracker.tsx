@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const STATUSES = ['Bookmarked', 'Applied', 'Interviewing', 'Offer', 'Rejected'];
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 5;
 
 export default function JobTracker() {
   const { user } = useAuth();
