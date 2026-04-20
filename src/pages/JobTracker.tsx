@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { GoogleGenAI } from '@google/genai';
-import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send } from 'lucide-react';
+import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -17,6 +17,10 @@ export default function JobTracker() {
   const [chatInput, setChatInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Filter and sort state
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [sortBy, setSortBy] = useState('date-desc');
 
   useEffect(() => {
     if (!user) return;
@@ -34,6 +38,37 @@ export default function JobTracker() {
 
     return unsubscribe;
   }, [user]);
+
+  const filteredAndSortedJobs = useMemo(() => {
+    let result = [...jobs];
+    
+    // Filter
+    if (filterStatus !== 'All') {
+      result = result.filter(job => job.status === filterStatus);
+    }
+    
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === 'date-desc') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortBy === 'date-asc') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (sortBy === 'company-asc') {
+        return (a.company || '').localeCompare(b.company || '');
+      }
+      if (sortBy === 'company-desc') {
+        return (b.company || '').localeCompare(a.company || '');
+      }
+      if (sortBy === 'status') {
+        return STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status);
+      }
+      return 0;
+    });
+    
+    return result;
+  }, [jobs, filterStatus, sortBy]);
 
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +195,37 @@ Return ONLY a valid JSON object with this exact structure:
         </form>
       </div>
 
+      {/* Filters & Sorting */}
+      {jobs.length > 0 && (
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex items-center space-x-2 w-full sm:w-auto">
+            <Filter className="w-4 h-4 text-gray-500" />
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto p-2 border"
+            >
+              <option value="All">All Statuses</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center space-x-2 w-full sm:w-auto">
+            <ArrowUpDown className="w-4 h-4 text-gray-500" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto p-2 border"
+            >
+              <option value="date-desc">Date Added (Newest)</option>
+              <option value="date-asc">Date Added (Oldest)</option>
+              <option value="company-asc">Company (A to Z)</option>
+              <option value="company-desc">Company (Z to A)</option>
+              <option value="status">Status Priority</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Jobs List */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
@@ -169,6 +235,17 @@ Return ONLY a valid JSON object with this exact structure:
             <Briefcase className="w-12 h-12 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium text-gray-900">No jobs tracked yet</p>
             <p className="mt-1">Use the chat box above to log your first application!</p>
+          </div>
+        ) : filteredAndSortedJobs.length === 0 ? (
+          <div className="p-12 text-center text-gray-500">
+            <Filter className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <p className="text-lg font-medium text-gray-900">No jobs match this filter</p>
+            <button 
+              onClick={() => setFilterStatus('All')}
+              className="mt-4 text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -182,7 +259,7 @@ Return ONLY a valid JSON object with this exact structure:
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {jobs.map((job) => (
+                {filteredAndSortedJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
