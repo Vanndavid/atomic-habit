@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { GoogleGenAI } from '@google/genai';
-import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -56,6 +56,13 @@ export default function JobTracker() {
     
     // Sort
     result.sort((a, b) => {
+      const aImportant = !!a.important;
+      const bImportant = !!b.important;
+
+      if (aImportant !== bImportant) {
+        return aImportant ? -1 : 1;
+      }
+
       if (sortBy === 'date-desc') {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
@@ -119,6 +126,7 @@ Return ONLY a valid JSON object with this exact structure:
         location: parsedData.location || '',
         status: parsedData.status || 'Applied',
         notes: parsedData.notes || '',
+        important: false,
         createdAt: new Date().toISOString()
       });
 
@@ -149,6 +157,17 @@ Return ONLY a valid JSON object with this exact structure:
       await deleteDoc(doc(db, `users/${user.uid}/jobs`, jobId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/jobs/${jobId}`);
+    }
+  };
+
+  const toggleImportant = async (jobId: string, isImportant: boolean) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, `users/${user.uid}/jobs`, jobId), {
+        important: !isImportant
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/jobs/${jobId}`);
     }
   };
 
@@ -297,6 +316,14 @@ Return ONLY a valid JSON object with this exact structure:
                       {format(new Date(job.createdAt), 'MMM d, yyyy')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => toggleImportant(job.id, !!job.important)}
+                        className={`mr-3 transition-colors ${job.important ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'}`}
+                        title={job.important ? 'Remove important' : 'Mark as important'}
+                        aria-label={job.important ? 'Remove important' : 'Mark as important'}
+                      >
+                        <Star className={`w-5 h-5 ${job.important ? 'fill-current' : ''}`} />
+                      </button>
                       <button onClick={() => deleteJob(job.id)} className="text-gray-400 hover:text-red-600 transition-colors">
                         <Trash2 className="w-5 h-5" />
                       </button>
