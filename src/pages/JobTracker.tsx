@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { GoogleGenAI } from '@google/genai';
-import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Star } from 'lucide-react';
+import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Star, Search } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -21,13 +21,14 @@ export default function JobTracker() {
 
   // Filter and sort state
   const [filterStatus, setFilterStatus] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('date-desc');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterStatus, sortBy]);
+  }, [filterStatus, sortBy, searchTerm]);
 
   useEffect(() => {
     if (!user) return;
@@ -52,6 +53,15 @@ export default function JobTracker() {
     // Filter
     if (filterStatus !== 'All') {
       result = result.filter(job => job.status === filterStatus);
+    }
+
+    if (searchTerm.trim()) {
+      const normalizedSearch = searchTerm.trim().toLowerCase();
+      result = result.filter((job) =>
+        [job.role, job.company, job.location, job.notes, job.status]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+      );
     }
     
     // Sort
@@ -82,7 +92,7 @@ export default function JobTracker() {
     });
     
     return result;
-  }, [jobs, filterStatus, sortBy]);
+  }, [jobs, filterStatus, sortBy, searchTerm]);
 
   const totalPages = Math.ceil(filteredAndSortedJobs.length / ITEMS_PER_PAGE);
   const paginatedJobs = filteredAndSortedJobs.slice(
@@ -230,6 +240,16 @@ Return ONLY a valid JSON object with this exact structure:
       {/* Filters & Sorting */}
       {jobs.length > 0 && (
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search role, company, notes..."
+              className="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full p-2 pl-9 border"
+            />
+          </div>
           <div className="flex items-center space-x-2 w-full sm:w-auto">
             <Filter className="w-4 h-4 text-gray-500" />
             <select
@@ -271,12 +291,15 @@ Return ONLY a valid JSON object with this exact structure:
         ) : filteredAndSortedJobs.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <Filter className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p className="text-lg font-medium text-gray-900">No jobs match this filter</p>
+            <p className="text-lg font-medium text-gray-900">No jobs match this filter or search</p>
             <button 
-              onClick={() => setFilterStatus('All')}
+              onClick={() => {
+                setFilterStatus('All');
+                setSearchTerm('');
+              }}
               className="mt-4 text-indigo-600 hover:text-indigo-800 font-medium"
             >
-              Clear filters
+              Clear filters and search
             </button>
           </div>
         ) : (
