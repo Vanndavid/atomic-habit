@@ -66,6 +66,11 @@ export default function JobTracker() {
     
     // Sort
     result.sort((a, b) => {
+      // Always keep important/starred jobs at the top
+      if (a.isImportant !== b.isImportant) {
+        return a.isImportant ? -1 : 1;
+      }
+
       if (sortBy === 'date-desc') {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
