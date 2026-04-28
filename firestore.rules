@@ -67,6 +67,14 @@ service cloud.firestore {
     //   - notes: string (optional)
     //   - createdAt: string (required, immutable)
     //
+    // Collection: users/{userId}/atomicTasks/{taskId}
+    // Fields:
+    //   - objective: string (required)
+    //   - microStep: string (required)
+    //   - completions: list of string (required)
+    //   - archived: boolean (required)
+    //   - createdAt: string (required, immutable)
+    //
     // ===============================================================
 
     // ===============================================================
@@ -173,7 +181,17 @@ service cloud.firestore {
              request.resource.data.status in ['Bookmarked', 'Applied', 'Interviewing', 'Offer', 'Rejected'] &&
              isValidString('createdAt', 50) &&
              isValidOptionalString('location', 200) &&
-             isValidOptionalString('notes', 1000);
+             isValidOptionalString('notes', 1000) &&
+             (!('isImportant' in request.resource.data) || request.resource.data.isImportant is bool);
+    }
+
+    function isValidAtomicTask() {
+      return hasRequiredFields(['objective', 'microStep', 'completions', 'archived', 'createdAt']) &&
+             isValidString('objective', 500) &&
+             isValidString('microStep', 500) &&
+             request.resource.data.completions is list &&
+             request.resource.data.archived is bool &&
+             isValidString('createdAt', 50);
     }
 
     // ===============================================================
@@ -223,6 +241,13 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidJob();
         allow update: if isOwner(userId) && isValidJob() && createdAtNotModified();
+        allow delete: if isOwner(userId);
+      }
+      
+      match /atomicTasks/{taskId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidAtomicTask();
+        allow update: if isOwner(userId) && isValidAtomicTask() && createdAtNotModified();
         allow delete: if isOwner(userId);
       }
     }

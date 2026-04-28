@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { GoogleGenAI } from '@google/genai';
-import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Star, Search } from 'lucide-react';
+import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Search, Star } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -19,16 +19,16 @@ export default function JobTracker() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Filter and sort state
+  // Filter, search, and sort state
   const [filterStatus, setFilterStatus] = useState('All');
-  const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('date-desc');
+  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterStatus, sortBy, searchTerm]);
+  }, [filterStatus, sortBy, searchQuery]);
 
   useEffect(() => {
     if (!user) return;
@@ -50,29 +50,22 @@ export default function JobTracker() {
   const filteredAndSortedJobs = useMemo(() => {
     let result = [...jobs];
     
+    // Search
+    if (searchQuery.trim() !== '') {
+      const qs = searchQuery.toLowerCase();
+      result = result.filter(job => 
+        (job.company?.toLowerCase().includes(qs)) || 
+        (job.role?.toLowerCase().includes(qs))
+      );
+    }
+
     // Filter
     if (filterStatus !== 'All') {
       result = result.filter(job => job.status === filterStatus);
     }
-
-    if (searchTerm.trim()) {
-      const normalizedSearch = searchTerm.trim().toLowerCase();
-      result = result.filter((job) =>
-        [job.role, job.company, job.location, job.notes, job.status]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(normalizedSearch))
-      );
-    }
     
     // Sort
     result.sort((a, b) => {
-      const aImportant = !!a.important;
-      const bImportant = !!b.important;
-
-      if (aImportant !== bImportant) {
-        return aImportant ? -1 : 1;
-      }
-
       if (sortBy === 'date-desc') {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
@@ -92,7 +85,7 @@ export default function JobTracker() {
     });
     
     return result;
-  }, [jobs, filterStatus, sortBy, searchTerm]);
+  }, [jobs, filterStatus, sortBy, searchQuery]);
 
   const totalPages = Math.ceil(filteredAndSortedJobs.length / ITEMS_PER_PAGE);
   const paginatedJobs = filteredAndSortedJobs.slice(
@@ -136,7 +129,7 @@ Return ONLY a valid JSON object with this exact structure:
         location: parsedData.location || '',
         status: parsedData.status || 'Applied',
         notes: parsedData.notes || '',
-        important: false,
+        isImportant: false,
         createdAt: new Date().toISOString()
       });
 
@@ -160,6 +153,17 @@ Return ONLY a valid JSON object with this exact structure:
     }
   };
 
+  const toggleImportant = async (jobId: string, currentImportant: boolean) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, `users/${user.uid}/jobs`, jobId), {
+        isImportant: !currentImportant
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/jobs/${jobId}`);
+    }
+  };
+
   const deleteJob = async (jobId: string) => {
     if (!user) return;
     if (!window.confirm('Are you sure you want to delete this job application?')) return;
@@ -167,17 +171,6 @@ Return ONLY a valid JSON object with this exact structure:
       await deleteDoc(doc(db, `users/${user.uid}/jobs`, jobId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/jobs/${jobId}`);
-    }
-  };
-
-  const toggleImportant = async (jobId: string, isImportant: boolean) => {
-    if (!user) return;
-    try {
-      await updateDoc(doc(db, `users/${user.uid}/jobs`, jobId), {
-        important: !isImportant
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/jobs/${jobId}`);
     }
   };
 
@@ -240,40 +233,44 @@ Return ONLY a valid JSON object with this exact structure:
       {/* Filters & Sorting */}
       {jobs.length > 0 && (
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="flex-1 w-full relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
             <input
               type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search role, company, notes..."
-              className="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full p-2 pl-9 border"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by company or role..."
+              className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 p-2 border"
             />
           </div>
-          <div className="flex items-center space-x-2 w-full sm:w-auto">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto p-2 border"
-            >
-              <option value="All">All Statuses</option>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="flex items-center space-x-2 w-full sm:w-auto">
-            <ArrowUpDown className="w-4 h-4 text-gray-500" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto p-2 border"
-            >
-              <option value="date-desc">Date Added (Newest)</option>
-              <option value="date-asc">Date Added (Oldest)</option>
-              <option value="company-asc">Company (A to Z)</option>
-              <option value="company-desc">Company (Z to A)</option>
-              <option value="status">Status Priority</option>
-            </select>
+          <div className="flex items-center space-x-4 w-full sm:w-auto">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-4 h-4 text-gray-500" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 p-2 border"
+              >
+                <option value="All">All Statuses</option>
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <ArrowUpDown className="w-4 h-4 text-gray-500" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 p-2 border"
+              >
+                <option value="date-desc">Date Added (Newest)</option>
+                <option value="date-asc">Date Added (Oldest)</option>
+                <option value="company-asc">Company (A to Z)</option>
+                <option value="company-desc">Company (Z to A)</option>
+                <option value="status">Status Priority</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
@@ -291,15 +288,15 @@ Return ONLY a valid JSON object with this exact structure:
         ) : filteredAndSortedJobs.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <Filter className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p className="text-lg font-medium text-gray-900">No jobs match this filter or search</p>
+            <p className="text-lg font-medium text-gray-900">No jobs match this filter</p>
             <button 
               onClick={() => {
                 setFilterStatus('All');
-                setSearchTerm('');
+                setSearchQuery('');
               }}
               className="mt-4 text-indigo-600 hover:text-indigo-800 font-medium"
             >
-              Clear filters and search
+              Clear filters
             </button>
           </div>
         ) : (
@@ -318,7 +315,10 @@ Return ONLY a valid JSON object with this exact structure:
                   <tr key={job.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-gray-900">{job.role}</span>
+                        <span className="text-sm font-semibold text-gray-900 flex items-center">
+                          {job.isImportant && <Star className="w-4 h-4 mr-1 text-yellow-400 fill-yellow-400" />}
+                          {job.role}
+                        </span>
                         <div className="flex items-center text-sm text-gray-500 mt-1 space-x-3">
                           <span className="flex items-center"><Building className="w-4 h-4 mr-1 text-gray-400"/> {job.company}</span>
                           {job.location && <span className="flex items-center"><MapPin className="w-4 h-4 mr-1 text-gray-400"/> {job.location}</span>}
@@ -339,17 +339,18 @@ Return ONLY a valid JSON object with this exact structure:
                       {format(new Date(job.createdAt), 'MMM d, yyyy')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => toggleImportant(job.id, !!job.important)}
-                        className={`mr-3 transition-colors ${job.important ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'}`}
-                        title={job.important ? 'Remove important' : 'Mark as important'}
-                        aria-label={job.important ? 'Remove important' : 'Mark as important'}
-                      >
-                        <Star className={`w-5 h-5 ${job.important ? 'fill-current' : ''}`} />
-                      </button>
-                      <button onClick={() => deleteJob(job.id)} className="text-gray-400 hover:text-red-600 transition-colors">
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center justify-end space-x-3">
+                        <button 
+                          onClick={() => toggleImportant(job.id, job.isImportant)} 
+                          className={`${job.isImportant ? 'text-yellow-400 hover:text-yellow-500' : 'text-gray-400 hover:text-gray-600'} transition-colors`}
+                          title={job.isImportant ? "Unmark important" : "Mark important"}
+                        >
+                          <Star className={`w-5 h-5 ${job.isImportant ? 'fill-current' : ''}`} />
+                        </button>
+                        <button onClick={() => deleteJob(job.id)} className="text-gray-400 hover:text-red-600 transition-colors">
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

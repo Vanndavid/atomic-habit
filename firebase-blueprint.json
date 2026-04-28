@@ -91,9 +91,23 @@
         "location": { "type": "string" },
         "status": { "type": "string", "enum": ["Bookmarked", "Applied", "Interviewing", "Offer", "Rejected"] },
         "notes": { "type": "string" },
+        "isImportant": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["company", "role", "status", "createdAt"]
+    },
+    "AtomicTask": {
+      "title": "AtomicTask",
+      "description": "A user goal broken down into an atomic 2-minute habit.",
+      "type": "object",
+      "properties": {
+        "objective": { "type": "string" },
+        "microStep": { "type": "string" },
+        "completions": { "type": "array", "items": { "type": "string" } },
+        "archived": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["objective", "microStep", "completions", "archived", "createdAt"]
     }
   },
   "firestore": {
@@ -124,6 +138,10 @@
     "/users/{userId}/jobs/{jobId}": {
       "schema": { "$ref": "#/entities/JobApplication" },
       "description": "User's job applications."
+    },
+    "/users/{userId}/atomicTasks/{taskId}": {
+      "schema": { "$ref": "#/entities/AtomicTask" },
+      "description": "User's atomic micro-habits."
     }
   }
 }
