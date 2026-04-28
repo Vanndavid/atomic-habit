@@ -1,136 +1,200 @@
-import { useState, useEffect } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
-import { collection, doc, onSnapshot, query } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, query, setDoc } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { CheckCircle2, Circle, Plus, Rocket } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { Target, Activity, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router';
+
+type TaskHabit = {
+  id: string;
+  name: string;
+  type: 'good' | 'bad';
+  cue?: string;
+  response?: string;
+};
+
+const createStarterStep = (taskName: string) => {
+  const normalizedTask = taskName.trim();
+  return `Open VS Code, create a file named \"${normalizedTask}\", and work for 5 minutes.`;
+};
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [identityStatement, setIdentityStatement] = useState<string>('');
-  const [habits, setHabits] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<TaskHabit[]>([]);
+  const [completions, setCompletions] = useState<Record<string, string>>({});
+  const [taskName, setTaskName] = useState('');
+  const [minutes, setMinutes] = useState('60');
   const [loading, setLoading] = useState(true);
+
+  const today = format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
     if (!user) return;
 
-    const userRef = doc(db, 'users', user.uid);
-    const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setIdentityStatement(docSnap.data().identityStatement || '');
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
-    });
-
     const habitsRef = collection(db, `users/${user.uid}/habits`);
-    const q = query(habitsRef);
-    const unsubscribeHabits = onSnapshot(q, (snapshot) => {
-      const habitsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setHabits(habitsData);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/habits`);
-    });
+    const unsubscribeHabits = onSnapshot(
+      query(habitsRef),
+      (snapshot) => {
+        const taskData = snapshot.docs
+          .map((habitDoc) => ({ id: habitDoc.id, ...habitDoc.data() } as TaskHabit))
+          .filter((habit) => habit.type === 'good');
+        setTasks(taskData);
+        setLoading(false);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/habits`);
+        setLoading(false);
+      }
+    );
+
+    const completionsRef = collection(db, `users/${user.uid}/completions`);
+    const unsubscribeCompletions = onSnapshot(
+      query(completionsRef),
+      (snapshot) => {
+        const completionData: Record<string, string> = {};
+        snapshot.docs.forEach((completionDoc) => {
+          const data = completionDoc.data();
+          if (data.date === today) {
+            completionData[data.habitId] = completionDoc.id;
+          }
+        });
+        setCompletions(completionData);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/completions`);
+      }
+    );
 
     return () => {
-      unsubscribeUser();
       unsubscribeHabits();
+      unsubscribeCompletions();
     };
-  }, [user]);
+  }, [today, user]);
 
-  if (loading) {
-    return <div className="animate-pulse flex flex-col space-y-4">
-      <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-      <div className="h-32 bg-gray-200 rounded"></div>
-      <div className="h-64 bg-gray-200 rounded"></div>
-    </div>;
-  }
+  const completedCount = useMemo(() => Object.keys(completions).length, [completions]);
 
-  const goodHabits = habits.filter(h => h.type === 'good');
-  const badHabits = habits.filter(h => h.type === 'bad');
+  const handleAddTask = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!user || !taskName.trim()) return;
+
+    const duration = Number(minutes);
+    const safeDuration = Number.isFinite(duration) && duration > 0 ? Math.floor(duration) : 60;
+
+    try {
+      await addDoc(collection(db, `users/${user.uid}/habits`), {
+        name: taskName.trim(),
+        type: 'good',
+        cue: `${safeDuration}m`,
+        response: createStarterStep(taskName),
+        createdAt: new Date().toISOString(),
+      });
+
+      setTaskName('');
+      setMinutes('60');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/habits`);
+    }
+  };
+
+  const toggleTodayDone = async (taskId: string) => {
+    if (!user) return;
+
+    try {
+      if (completions[taskId]) {
+        await deleteDoc(doc(db, `users/${user.uid}/completions`, completions[taskId]));
+      } else {
+        const completionRef = doc(collection(db, `users/${user.uid}/completions`));
+        await setDoc(completionRef, {
+          habitId: taskId,
+          date: today,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/completions`);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.displayName?.split(' ')[0] || 'Builder'}</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          "You do not rise to the level of your goals. You fall to the level of your systems."
+        <h1 className="text-2xl font-bold text-gray-900">Simple Task Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Add one task, start tiny, and mark it done today.
         </p>
       </div>
 
-      {/* Identity Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6">
-          <div className="flex items-center mb-4">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-4">
-              <Target className="w-5 h-5 text-indigo-600" />
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900">Your Identity</h2>
-          </div>
-          {identityStatement ? (
-            <blockquote className="text-xl font-medium text-gray-900 italic border-l-4 border-indigo-500 pl-4 py-2">
-              "{identityStatement}"
-            </blockquote>
-          ) : (
-            <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-              <p className="text-gray-500 mb-4">You haven't defined your identity statement yet.</p>
-              <Link to="/identity" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
-                Define Identity
-              </Link>
-            </div>
-          )}
-        </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Task</h2>
+        <form className="grid grid-cols-1 md:grid-cols-5 gap-3" onSubmit={handleAddTask}>
+          <input
+            value={taskName}
+            onChange={(event) => setTaskName(event.target.value)}
+            placeholder="e.g. coding ai agent"
+            className="md:col-span-3 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          />
+          <input
+            value={minutes}
+            onChange={(event) => setMinutes(event.target.value)}
+            placeholder="60"
+            inputMode="numeric"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            aria-label="task minutes"
+          />
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700"
+          >
+            <Plus className="w-4 h-4" /> Add
+          </button>
+        </form>
       </div>
 
-      {/* Habits Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
-              Building ({goodHabits.length})
-            </h3>
-            <Link to="/law1" className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center">
-              Manage <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
-          </div>
-          {goodHabits.length > 0 ? (
-            <ul className="space-y-3">
-              {goodHabits.slice(0, 5).map(habit => (
-                <li key={habit.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="font-medium text-gray-900">{habit.name}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-gray-500 italic">No good habits tracked yet.</p>
-          )}
-        </div>
+      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+        <p className="text-sm text-indigo-900 font-medium">
+          Today: {completedCount}/{tasks.length} tasks completed
+        </p>
+      </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
-              Breaking ({badHabits.length})
-            </h3>
-            <Link to="/law1" className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center">
-              Manage <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
+      <div className="space-y-3">
+        {loading ? (
+          <div className="text-sm text-gray-500">Loading tasks...</div>
+        ) : tasks.length === 0 ? (
+          <div className="bg-white border border-dashed border-gray-300 rounded-xl p-6 text-center text-sm text-gray-500">
+            No tasks yet. Add your first task above.
           </div>
-          {badHabits.length > 0 ? (
-            <ul className="space-y-3">
-              {badHabits.slice(0, 5).map(habit => (
-                <li key={habit.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="font-medium text-gray-900">{habit.name}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-gray-500 italic">No bad habits tracked yet.</p>
-          )}
-        </div>
+        ) : (
+          tasks.map((task) => {
+            const isDone = Boolean(completions[task.id]);
+
+            return (
+              <div key={task.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                  <div className="space-y-2">
+                    <p className="font-semibold text-gray-900">{task.name}</p>
+                    <p className="text-xs text-gray-500">Estimated focus: {task.cue || '60m'}</p>
+                    <div className="flex items-start gap-2 text-sm bg-gray-50 border border-gray-200 rounded-lg p-2">
+                      <Rocket className="w-4 h-4 mt-0.5 text-indigo-600" />
+                      <span>{task.response || createStarterStep(task.name)}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toggleTodayDone(task.id)}
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border ${
+                      isDone
+                        ? 'text-green-700 bg-green-50 border-green-200'
+                        : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {isDone ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                    {isDone ? 'Done today' : 'Mark done'}
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

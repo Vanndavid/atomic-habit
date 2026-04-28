@@ -1,33 +1,17 @@
 import { Outlet, NavLink } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../firebase';
-import { 
-  LayoutDashboard, 
-  User, 
-  Eye, 
-  Heart, 
-  Zap, 
-  CheckCircle,
+import {
+  LayoutDashboard,
   LogOut,
   BookOpen,
-  CalendarDays,
-  Briefcase,
-  ListChecks,
-  Target
+  Target,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Job Hunt Planner', href: '/job-hunt', icon: Briefcase },
   { name: 'Job Tracker', href: '/job-tracker', icon: Target },
-  { name: 'Fundamentals', href: '/identity', icon: User },
-  { name: 'Habits Scorecard', href: '/scorecard', icon: ListChecks },
-  { name: '1st Law: Obvious', href: '/law1', icon: Eye },
-  { name: '2nd Law: Attractive', href: '/law2', icon: Heart },
-  { name: '3rd Law: Easy', href: '/law3', icon: Zap },
-  { name: '4th Law: Satisfying', href: '/law4', icon: CheckCircle },
-  { name: 'Habit Tracker', href: '/tracker', icon: CalendarDays },
 ];
 
 export default function Layout() {
@@ -35,13 +19,12 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
       <div className="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
         <div className="h-16 flex items-center px-6 border-b border-gray-200">
           <BookOpen className="w-6 h-6 text-indigo-600 mr-2" />
           <span className="font-bold text-gray-900 text-lg">Atomic Habits</span>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto py-4">
           <nav className="px-3 space-y-1">
             {navigation.map((item) => (
@@ -73,7 +56,7 @@ export default function Layout() {
             ))}
           </nav>
         </div>
-        
+
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center mb-4">
             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
@@ -94,9 +77,7 @@ export default function Layout() {
         </div>
       </div>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile header */}
         <div className="md:hidden bg-white border-b border-gray-200 h-16 flex items-center px-4 justify-between">
           <div className="flex items-center">
             <BookOpen className="w-6 h-6 text-indigo-600 mr-2" />
@@ -106,7 +87,7 @@ export default function Layout() {
             <LogOut className="w-5 h-5" />
           </button>
         </div>
-        
+
         <main className="flex-1 overflow-y-auto focus:outline-none">
           <div className="py-6 px-4 sm:px-6 md:px-8 max-w-5xl mx-auto">
             <Outlet />
