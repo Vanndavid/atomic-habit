@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { GoogleGenAI } from '@google/genai';
-import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Search, Star } from 'lucide-react';
+import { Briefcase, MessageSquare, Loader2, Target, Building, MapPin, Trash2, Send, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Search, Star, Download } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -66,11 +66,6 @@ export default function JobTracker() {
     
     // Sort
     result.sort((a, b) => {
-      // Always keep important/starred jobs at the top
-      if (a.isImportant !== b.isImportant) {
-        return a.isImportant ? -1 : 1;
-      }
-
       if (sortBy === 'date-desc') {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
@@ -190,6 +185,36 @@ Return ONLY a valid JSON object with this exact structure:
     }
   };
 
+  const exportToCSV = () => {
+    const headers = ['Company', 'Role', 'Location', 'Status', 'Notes', 'Important', 'Date Added'];
+    
+    // We export the filtered list so the user can control what they download
+    const csvRows = [headers.join(',')];
+    
+    for (const job of filteredAndSortedJobs) {
+      const row = [
+        `"${(job.company || '').replace(/"/g, '""')}"`,
+        `"${(job.role || '').replace(/"/g, '""')}"`,
+        `"${(job.location || '').replace(/"/g, '""')}"`,
+        `"${(job.status || '').replace(/"/g, '""')}"`,
+        `"${(job.notes || '').replace(/"/g, '""')}"`,
+        job.isImportant ? 'Yes' : 'No',
+        format(new Date(job.createdAt), 'yyyy-MM-dd')
+      ];
+      csvRows.push(row.join(','));
+    }
+    
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `jobs_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div>
@@ -251,6 +276,14 @@ Return ONLY a valid JSON object with this exact structure:
             />
           </div>
           <div className="flex items-center space-x-4 w-full sm:w-auto">
+            <button
+              onClick={exportToCSV}
+              className="inline-flex items-center text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 p-2"
+              title="Export to CSV"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export
+            </button>
             <div className="flex items-center space-x-2">
               <Filter className="w-4 h-4 text-gray-500" />
               <select
