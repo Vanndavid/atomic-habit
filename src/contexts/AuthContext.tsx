@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, completeGoogleRedirectSignIn } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
@@ -40,9 +40,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           handleFirestoreError(error, OperationType.WRITE, `users/${currentUser.uid}`);
         }
       }
-      
-      setLoading(false);
     });
+
+    completeGoogleRedirectSignIn()
+      .catch((error) => {
+        console.error('Error completing Google sign-in redirect', error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
     return unsubscribe;
   }, []);
