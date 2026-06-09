@@ -1,18 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import firebaseAppletConfig from '../firebase-applet-config.json';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB07_OmOSBY_WN2aVMEJ5sy2lyhKzBTbw0",
-  authDomain: "aistudionew.firebaseapp.com",
-  projectId: "aistudionew",
-  storageBucket: "aistudionew.firebasestorage.app",
-  messagingSenderId: "128903621857",
-  appId: "1:128903621857:web:36b9198a6a37f3d2a5dba0"
+  apiKey: firebaseAppletConfig.apiKey,
+  authDomain: firebaseAppletConfig.authDomain,
+  projectId: firebaseAppletConfig.projectId,
+  storageBucket: firebaseAppletConfig.storageBucket,
+  messagingSenderId: firebaseAppletConfig.messagingSenderId,
+  appId: firebaseAppletConfig.appId,
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const db = getFirestore(app, firebaseAppletConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
